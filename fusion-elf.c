@@ -6,7 +6,7 @@
  * memory mapped space
  * */
 
-#include "elf.h"
+#include "fusion-elf.h"
 
 /* Creates memory map of ELF file
  * Takes only filename as parameter
@@ -23,7 +23,7 @@ addr_8_t* open_elf_map( const char* filename ){
 	}
 	
 	/* Get file size */
-	struct stat file_info = 0;
+	struct stat file_info = {0};
 	
 	/* check if file could be read */
 	if( fstat( elf_file, &file_info) == -1 ){
@@ -149,7 +149,7 @@ static inline char *elf_lookup_string(Elf32_Ehdr *hdr, int offset){
 
 
 /* Accessing symbol value */
-static int elf_get_symval(Elf32_Ehdr *hdr, int table, uint index) {
+static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, uint index) {
 	if(table == SHN_UNDEF || index == SHN_UNDEF)
 		return 0;
 	Elf32_Shdr *symtab = elf_section(hdr, table);
@@ -287,7 +287,7 @@ static int elf_load_stage2(Elf32_Ehdr* hdr){
 		/* If relocation section */
 		if( section->sh_type == SHT_RELA){
 			for(idx = 0; idx < ( section->sh_size / section->sh_entsize); idx++){
-				Elf32_Rela* reltab = &((Elf32_Rel *)((int)hdr + section->sh_offset))[idx];	
+				Elf32_Rela* reltab = &((Elf32_Rel *)((intmax_t)hdr + section->sh_offset))[idx];	
 				int result = elf_perform_reloc(hdr, reltab, section);
 				if(result == -1){
 					printf("Unable to perform relocation on symbol\n");			
