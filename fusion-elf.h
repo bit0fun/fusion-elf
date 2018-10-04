@@ -251,7 +251,7 @@ addr_8_t* open_elf_map( const char* filename );
 void close_elf_map( addr_8_t* map, intmax_t filesize);
 
 /* Allocates and initializes memory pointer variables */
-int create_memspace( void );
+int create_memspace( const char *filename );
 
 /* ELF Specific functions */
 int elf_check_magnum(Elf32_Ehdr *hdr);
@@ -267,6 +267,12 @@ static int elf_load_stage1 (Elf32_Ehdr *hdr);
 static int elf_perform_reloc(Elf32_Ehdr *hdr, Elf32_Rela *rela, Elf32_Shdr *reltab);
 static int elf_load_stage2(Elf32_Ehdr* hdr);
 static inline void *elf_load_rel(Elf32_Ehdr *hdr);
+
+/* conversion for void pointer and Elf32_Addr */
+union voidp2addr {
+	void * voidp;
+	Elf32_Addr addr;
+};
 
 
 

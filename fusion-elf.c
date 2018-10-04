@@ -72,7 +72,7 @@ int create_memspace( const char* filename ){
 	
 	/** setup ELF structs **/
 	/* Gets ELF Header */
-	Elf32_Ehdr* elf_hdr = elf_tmp; 
+	Elf32_Ehdr* elf_hdr = (Elf32_Ehdr *)elf_tmp; 
 
 	/* Check ELF magic number*/
 	if( elf_check_magnum( elf_hdr) ){
@@ -93,7 +93,7 @@ int create_memspace( const char* filename ){
 	/* Make array of ELF Section Headers */
 	Elf32_Shdr* elf_shdr[elf_nsec];
 	for( int i = 0; i < elf_nsec; i++){
-		elf_shdr[i] = elf_section( elf_hdr )[i];
+		elf_shdr[i] = elf_section( elf_hdr, i );
 	}
 
 	/* Get number of program headers */
@@ -254,7 +254,7 @@ static inline char *elf_lookup_string(Elf32_Ehdr *hdr, int offset){
 /** Functions for Program Header **/
 
 /* Accessing program header */
-static inline Elf32_Phdr *elf_pheader( Elf32_Ehdr *hdr, int i){
+static inline Elf32_Phdr *elf_pheader( Elf32_Ehdr *hdr){
 	return (Elf32_Phdr*)(hdr + hdr->e_phoff);
 }
 
@@ -404,7 +404,7 @@ static int elf_load_stage2(Elf32_Ehdr* hdr){
 		/* If relocation section */
 		if( section->sh_type == SHT_RELA){
 			for(idx = 0; idx < ( section->sh_size / section->sh_entsize); idx++){
-				Elf32_Rela* reltab = &((Elf32_Rel *)((intmax_t)hdr + section->sh_offset))[idx];	
+				Elf32_Rela* reltab = &((Elf32_Rela *)((intmax_t)hdr + section->sh_offset))[idx];	
 				int result = elf_perform_reloc(hdr, reltab, section);
 				if(result == -1){
 					printf("Unable to perform relocation on symbol\n");			
@@ -418,6 +418,7 @@ static int elf_load_stage2(Elf32_Ehdr* hdr){
 
 /* Loading ELF File */
 static inline void *elf_load_rel(Elf32_Ehdr *hdr){
+	union voidp2addr v2a; /* work around for type conversion issues */
 	int result;
 	result = elf_load_stage1(hdr);
 	if(result == -1){
@@ -430,7 +431,10 @@ static inline void *elf_load_rel(Elf32_Ehdr *hdr){
 		exit(7);
 	}
 
+	/* Convert Elf32_Addr to void * */
+	v2a.addr = hdr->e_entry;
+
 	/* Parse the program header here, if present*/
-	return (void *)hdr->e_entry;
+	return v2a.voidp;
 }
 
