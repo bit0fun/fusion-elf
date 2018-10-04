@@ -32,13 +32,15 @@ typedef uint32_t fusion_insn_t; 	/* 32 bit instruction */
 /* Memory related variables */
 addr_8_t *memory_space;				/* Total Memory Space for process */
 addr_8_t *dmem; 					/* Data Memory */
+addr_8_t *dmem_end;					/* End of Data Memory */
 fusion_addr_t *imem;				/* Instruction Memory */
+fusion_addr_t *imem_end;			/* End of instruction memory*/
 addr_8_t *cprmem;					/* Coprocessor Routine Memory */
 addr_8_t *rdomem;					/* Read Only Memory */
 
 /* File IO related variables */
-int elf_file; 						/* Elf File descriptor */
-intmax_t filesize;					/* Size of Elf File in bytes */
+static int elf_file; 						/* Elf File descriptor */
+static intmax_t filesize;					/* Size of Elf File in bytes */
 enum elf_error_t{
 	ELF_OK,							/* No errors */
 	ELF_OPEN,						/* Couldn't open ELF file */
@@ -143,6 +145,9 @@ enum ShT_Types {
 	SHT_SYMTBL			= 2, 	/* Symbol Table */
 	SHT_STRTBL			= 3,	/* String Table */
 	SHT_RELA			= 4,	/* Relocation using addend */
+	SHT_HASH			= 5,	/* Symbol hash table, can only be 1 */
+	SHT_DYNAMIC			= 6, 	/* Dynamic linking information */
+	SHT_NOTE			= 7,	/* Notes (ElfN_Nhdr) */
 	SHT_NOBITS			= 8,	/* Not present in file */
 	SHT_REL 			= 9,	/* Relcation without addend */
 };
@@ -253,6 +258,8 @@ int elf_check_magnum(Elf32_Ehdr *hdr);
 int elf_check_supported_arch(Elf32_Ehdr *hdr);
 static inline Elf32_Shdr *elf_sheader(Elf32_Ehdr *hdr);
 static inline Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i);
+static inline Elf32_Phdr *elf_pheader(Elf32_Ehdr *hdr);
+static inline Elf32_Phdr *elf_prginfo(Elf32_Ehdr *hdr, int i);
 static inline char *elf_str_table(Elf32_Ehdr *hdr);
 static inline char *elf_lookup_string(Elf32_Ehdr *hdr, int offset);
 static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, uint index);

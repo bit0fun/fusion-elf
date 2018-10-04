@@ -9,7 +9,8 @@
 #include "fusion-elf.h"
 
 /* Creates memory map of ELF file
- * Takes only filename as parameter
+ * Takes filename as parameter
+ * Saves filesize into respective global variable
  * Returns pointer to memory map
  * if error occurs, return NULL */
 addr_8_t* open_elf_map( const char* filename ){
@@ -36,6 +37,8 @@ addr_8_t* open_elf_map( const char* filename ){
 		elf_error = ELF_EMPTY;	
 		return NULL;
 	}
+	/* Save filesize */
+	filesize = file_info.st_size;
 
 	/* perform map and return pointer */
 	return mmap(0, file_info.st_size, PROT_READ, MAP_SHARED, elf_file, 0);
@@ -63,8 +66,111 @@ void close_elf_map( addr_8_t* map, intmax_t filesize){
  * memory space. This is to save memory, and more accurately simulate
  * a real memory space.
  * 	*/
-int create_memspace( void ){
+int create_memspace( const char* filename ){
+	/* creates map of file to read out to the allocated memory */
+	addr_8_t* elf_tmp = open_elf_map( filename );
+	
+	/** setup ELF structs **/
+	/* Gets ELF Header */
+	Elf32_Ehdr* elf_hdr = elf_tmp; 
 
+	/* Check ELF magic number*/
+	if( elf_check_magnum( elf_hdr) ){
+		printf("Not ELF File\n");
+		close_elf_map( elf_tmp, filesize);
+		return -1;
+	}
+	/* Check proper machine */
+	if( elf_check_supported_arch( elf_hdr) ){
+		printf("Incorrect architecture\n");		
+		close_elf_map( elf_tmp, filesize);
+		return -2;
+	}
+
+	/* Get number of sections */
+	int elf_nsec = elf_hdr->e_shnum;
+
+	/* Make array of ELF Section Headers */
+	Elf32_Shdr* elf_shdr[elf_nsec];
+	for( int i = 0; i < elf_nsec; i++){
+		elf_shdr[i] = elf_section( elf_hdr )[i];
+	}
+
+	/* Get number of program headers */
+	int elf_nprg = elf_hdr->e_phnum;
+
+	/* Variable for size of program */
+	size_t prgmem_size = 0; 
+
+	/* Make array of program headers*/
+	Elf32_Phdr* elf_phdr[elf_nprg];	
+	for( int i = 0; i < elf_nprg; i++){
+		elf_phdr[i] = elf_prginfo( elf_hdr, i );
+		/* Getting total memory allocation size */
+		prgmem_size += elf_phdr[i]->p_memsz;
+	}
+
+
+	/* allocate memory space of process to emulate */
+	memory_space = malloc( prgmem_size );	
+	if( memory_space == NULL){
+		printf("Could not allocate memory for Fusion-Core program. Exiting\n");
+		close_elf_map(elf_tmp, filesize);
+		return -1;	
+	}
+
+	/** Copy data into memory space **/
+
+	/* Variables for easy accessing program header values */
+	uint32_t vaddr;
+    uint32_t paddr; 
+    uint32_t filesz;
+    uint32_t memsz; 
+    uint32_t align; 
+    uint32_t offset;
+
+	/* Load segments */
+	for( int i = 0; i < elf_nprg; i++){
+		/* Check if loadable segment */
+		if( elf_phdr[i]->p_type == 1){
+			/* Get useful variables */
+			 vaddr 	= elf_phdr[i]->p_vaddr; 	/* virtual address start */
+			 paddr 	= elf_phdr[i]->p_paddr; 	/* physical address start */
+			 filesz = elf_phdr[i]->p_filesz; 	/* segment file size */
+			 memsz 	= elf_phdr[i]->p_memsz;		/* segment virtual size */
+			 align 	= elf_phdr[i]->p_align;		/* Boundary to align by */
+			 offset = elf_phdr[i]->p_offset;	/* Segment offset in file */
+
+			/* Define pointers */
+			for(int j = 0; j < elf_nsec; j++){
+				if( elf_shdr[i]->sh_offset == offset){
+				
+				}	
+			}
+
+			/* If loading, zero the memory and load data */
+			for(int j = vaddr; j < memsz; j++){ /* NOTE: need to change for alignment */
+				/* Zero memory */
+				*(memory_space + j ) = 0x00;
+			}	
+			for(int j = 0; j < filesz; j++){
+				/* Copy new data over */
+				*(memory_space + j + vaddr) = *(elf_tmp + j + offset);
+			}
+		}
+	} 	
+
+	/* Clean up memory map, don't need it after this point */
+	close_elf_map(elf_tmp, filesize);
+	return 0;
+}
+
+/* Frees the memory allocated for the memory space created by
+ * create_memspace.
+ * The same variables are affected here
+ * */
+int free_memspace (void){
+	free(memory_space);
 }
 
 /** ELF Header Functions **/
@@ -75,19 +181,19 @@ int elf_check_magnum(Elf32_Ehdr *hdr) {
 		return -1;
 	if(hdr->e_ident[EI_MAG0] != ELFMAG0){
 		printf("Error: ELF Header EI_MAG0 incorrect. Exiting.\n");
-		exit(1);
+		return -2;
 	}
 	if(hdr->e_ident[EI_MAG1] != ELFMAG1){
 		printf("Error: ELF Header EI_MAG1 incorrect. Exiting.\n");
-		exit(1);
+		return -3;
 	}
 	if(hdr->e_ident[EI_MAG2] != ELFMAG2){
 		printf("Error: ELF Header EI_MAG2 incorrect. Exiting.\n");
-		exit(1);
+		return -4;
 	}
 	if(hdr->e_ident[EI_MAG3] != ELFMAG3){
 		printf("Error: ELF Header EI_MAG3 incorrect. Exiting.\n");
-		exit(1);
+		return -5;
 	}
 
 	/* If the program gets this far, everything is fine */
@@ -96,23 +202,23 @@ int elf_check_magnum(Elf32_Ehdr *hdr) {
 
 /* Checking if architecture is supported */
 int elf_check_supported_arch(Elf32_Ehdr *hdr){
-	elf_check_magnum(hdr); /* Don't need to error handle as the program will exit before here. */
+	//elf_check_magnum(hdr); /* Don't need to error handle as the program will exit before here. */
 
 	if(hdr->e_ident[EI_CLASS] != ELFCLASS32){
 		printf("Unsupported Elf File Class. Only 32 bit architectures at this time. Exiting.\n");
-		exit(2);
+		return -1;
 	}
 	if(hdr->e_ident[EI_DATA] != ELFDATA2MSB){
 		printf("Unsupported Little Endian byte ordering. Only Big Engian binary files accepted. Exiting.\n");
-		exit(2);
+		return -2;
 	}
 	if(hdr->e_machine != EM_FUSION){
 		printf("Unsupported Target. I don't know why you're trying to use a Fusion-Core ISA specific tool with a different architecture, but ok. Exiting.\n");
-		exit(2);
+		return -3;
 	}
 	if(hdr->e_ident[EI_VERSION] != EV_CURRENT){
 		printf("Unsupported Elf File Version. Exiting.\n");
-		exit(2);
+		return -4;
 	}
 	return 0;
 }
@@ -129,11 +235,12 @@ static inline Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i){
 	return &elf_sheader(hdr)[i]; /* 'i' refers to the index of the sections */
 }
 
+
 /* Accessing String table  */
 static inline char *elf_str_table(Elf32_Ehdr *hdr){
 	if(hdr->e_shstrnidx == SHN_UNDEF)
 		return NULL;
-	return (char *)hdr + elf_section(hdr, hdr->e_shstrnidx)->sh_offset;
+	return (char *) (hdr + elf_section(hdr, hdr->e_shstrnidx)->sh_offset);
 }
 
 /* Looking up string in string table  */
@@ -144,7 +251,17 @@ static inline char *elf_lookup_string(Elf32_Ehdr *hdr, int offset){
 	return strtab + offset;
 }
 
+/** Functions for Program Header **/
 
+/* Accessing program header */
+static inline Elf32_Phdr *elf_pheader( Elf32_Ehdr *hdr, int i){
+	return (Elf32_Phdr*)(hdr + hdr->e_phoff);
+}
+
+/* Accessing program header index */
+static inline Elf32_Phdr *elf_prginfo(Elf32_Ehdr *hdr, int i){
+	return &elf_pheader(hdr)[i];
+}
 /* Functions for Symbol Table */
 
 
