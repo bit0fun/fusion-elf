@@ -35,8 +35,9 @@ addr_8_t *dmem; 					/* Data Memory */
 addr_8_t *dmem_end;					/* End of Data Memory */
 fusion_addr_t *imem;				/* Instruction Memory */
 fusion_addr_t *imem_end;			/* End of instruction memory*/
-addr_8_t *cprmem;					/* Coprocessor Routine Memory */
-addr_8_t *rdomem;					/* Read Only Memory */
+//addr_8_t *cprmem;					/* Coprocessor Routine Memory */
+//addr_8_t *rdomem;					/* Read Only Memory */
+fusion_addr_t entry;				/* Entry point */
 
 /* File IO related variables */
 static int elf_file; 						/* Elf File descriptor */

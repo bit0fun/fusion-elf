@@ -129,6 +129,7 @@ int create_memspace( const char* filename ){
     uint32_t align; 
     uint32_t offset;
 
+	char *tmp_secname; /* Temporary pointer for getting string name from table */
 	/* Load segments */
 	for( int i = 0; i < elf_nprg; i++){
 		/* Check if loadable segment */
@@ -141,12 +142,26 @@ int create_memspace( const char* filename ){
 			 align 	= elf_phdr[i]->p_align;		/* Boundary to align by */
 			 offset = elf_phdr[i]->p_offset;	/* Segment offset in file */
 
-			/* Define pointers */
+			/** Define pointers **/
 			for(int j = 0; j < elf_nsec; j++){
-				if( elf_shdr[i]->sh_offset == offset){
-				
+				/* If offsets are equal, can use section name to figure out
+				 * what it is */
+				if( elf_shdr[j]->sh_offset == offset){
+					/* get pointer to name of section */
+					tmp_secname = elf_lookup_string( elf_hdr, elf_shdr[j]->sh_name );
+					/* if match, then mark the text segment */
+					if( strncmp( tmp_secname, ".text") == 0 ){
+						imem = (fusion_addr_t *)offset; /* setting beginning of instruction memory */	
+						imem_end = (fusion_addr_t *)(offset + memsz);
+					/* do the same for the data segment */
+					} else if( strncmp( tmp_secname, ".data") == 0 ){
+						dmem = (uint8_t *)(offset); /* setting beginning of data memory */	
+						imem_end = (uint8_t *)(offset + memsz);
+					}
 				}	
 			}
+			/* save entry point, no need for pointer */
+			entry = (fusion_addr_t)(elf_hdr->e_entry);
 
 			/* If loading, zero the memory and load data */
 			for(int j = vaddr; j < memsz; j++){ /* NOTE: need to change for alignment */
