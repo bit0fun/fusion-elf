@@ -275,6 +275,11 @@ union voidp2addr {
 	Elf32_Addr addr;
 };
 
+/* Useful for getting values from ELF pointers */
+union ptr2uint {
+	void * ptr;
+	uint32_t uint;
+}
 
 
 #endif /* FUSION_ELF_H */

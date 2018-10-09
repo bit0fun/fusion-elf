@@ -150,11 +150,11 @@ int create_memspace( const char* filename ){
 					/* get pointer to name of section */
 					tmp_secname = elf_lookup_string( elf_hdr, elf_shdr[j]->sh_name );
 					/* if match, then mark the text segment */
-					if( strncmp( tmp_secname, ".text") == 0 ){
+					if( strncmp( tmp_secname, ".text", 5) == 0 ){
 						imem = (fusion_addr_t *)offset; /* setting beginning of instruction memory */	
 						imem_end = (fusion_addr_t *)(offset + memsz);
 					/* do the same for the data segment */
-					} else if( strncmp( tmp_secname, ".data") == 0 ){
+					} else if( strncmp( tmp_secname, ".data", 5) == 0 ){
 						dmem = (uint8_t *)(offset); /* setting beginning of data memory */	
 						imem_end = (uint8_t *)(offset + memsz);
 					}
