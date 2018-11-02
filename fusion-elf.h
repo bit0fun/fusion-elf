@@ -279,7 +279,7 @@ union voidp2addr {
 union ptr2uint {
 	void * ptr;
 	uint32_t uint;
-}
+};
 
 
 #endif /* FUSION_ELF_H */
