@@ -254,6 +254,27 @@ void close_elf_map( addr_8_t* map, intmax_t filesize);
 /* Allocates and initializes memory pointer variables */
 int create_memspace( const char *filename );
 
+/* conversion for void pointer and Elf32_Addr */
+union voidp2addr {
+	void * voidp;
+	Elf32_Addr addr;
+};
+
+/* Useful for getting values from ELF pointers */
+union ptr2uint {
+	void * ptr;
+	uint32_t uint;
+};
+
+/* converting uint32_t to array of uint8_t */
+union u32u8 {
+ 	uint32_t u32;
+	uint8_t u8[4];
+};
+
+/* Byte swapping function */
+static inline uint32_t byteswap_elf( uint32_t word );
+
 /* ELF Specific functions */
 int elf_check_magnum(Elf32_Ehdr *hdr);
 int elf_check_supported_arch(Elf32_Ehdr *hdr);
@@ -269,17 +290,8 @@ static int elf_perform_reloc(Elf32_Ehdr *hdr, Elf32_Rela *rela, Elf32_Shdr *relt
 static int elf_load_stage2(Elf32_Ehdr* hdr);
 static inline void *elf_load_rel(Elf32_Ehdr *hdr);
 
-/* conversion for void pointer and Elf32_Addr */
-union voidp2addr {
-	void * voidp;
-	Elf32_Addr addr;
-};
 
-/* Useful for getting values from ELF pointers */
-union ptr2uint {
-	void * ptr;
-	uint32_t uint;
-};
+
 
 
 #endif /* FUSION_ELF_H */

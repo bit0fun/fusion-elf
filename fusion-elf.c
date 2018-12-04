@@ -130,6 +130,9 @@ int create_memspace( const char* filename ){
     uint32_t offset;
 
 	char *tmp_secname; /* Temporary pointer for getting string name from table */
+	
+	union ptr2uint ptr_tmp; /* temporary conversion between uint and pointer*/
+
 	/* Load segments */
 	for( int i = 0; i < elf_nprg; i++){
 		/* Check if loadable segment */
@@ -146,22 +149,29 @@ int create_memspace( const char* filename ){
 			for(int j = 0; j < elf_nsec; j++){
 				/* If offsets are equal, can use section name to figure out
 				 * what it is */
-				if( elf_shdr[j]->sh_offset == offset){
+				if( elf_shdr[j]->sh_offset == offset ){
 					/* get pointer to name of section */
 					tmp_secname = elf_lookup_string( elf_hdr, elf_shdr[j]->sh_name );
 					/* if match, then mark the text segment */
 					if( strncmp( tmp_secname, ".text", 5) == 0 ){
-						imem = (fusion_addr_t *)offset; /* setting beginning of instruction memory */	
-						imem_end = (fusion_addr_t *)(offset + memsz);
+						ptr_tmp.uint = offset;
+						imem = (fusion_addr_t *)ptr_tmp.ptr; /* setting beginning of instruction memory */	
+
+						ptr_tmp.uint = offset + memsz;
+						imem_end = (fusion_addr_t *)(ptr_tmp.ptr);
+
 					/* do the same for the data segment */
 					} else if( strncmp( tmp_secname, ".data", 5) == 0 ){
-						dmem = (uint8_t *)(offset); /* setting beginning of data memory */	
-						imem_end = (uint8_t *)(offset + memsz);
+						ptr_tmp.uint = offset;
+						dmem = (uint8_t *)(ptr_tmp.ptr); /* setting beginning of data memory */	
+
+						ptr_tmp.uint = offset + memsz;
+						dmem_end = (uint8_t *)(ptr_tmp.ptr);
 					}
 				}	
 			}
 			/* save entry point, no need for pointer */
-			entry = (fusion_addr_t)(elf_hdr->e_entry);
+			entry = (fusion_addr_t)( byteswap_elf( elf_hdr->e_entry ) );
 
 			/* If loading, zero the memory and load data */
 			for(int j = vaddr; j < memsz; j++){ /* NOTE: need to change for alignment */
@@ -170,7 +180,7 @@ int create_memspace( const char* filename ){
 			}	
 			for(int j = 0; j < filesz; j++){
 				/* Copy new data over */
-				*(memory_space + j + vaddr) = *(elf_tmp + j + offset);
+				*(memory_space + j + vaddr) = byteswap_elf( *(elf_tmp + j + offset) );
 			}
 		}
 	} 	
@@ -218,20 +228,22 @@ int elf_check_magnum(Elf32_Ehdr *hdr) {
 /* Checking if architecture is supported */
 int elf_check_supported_arch(Elf32_Ehdr *hdr){
 	//elf_check_magnum(hdr); /* Don't need to error handle as the program will exit before here. */
+	
+	printf("e_machine: %08x\n", hdr->e_machine);
 
 	if(hdr->e_ident[EI_CLASS] != ELFCLASS32){
 		printf("Unsupported Elf File Class. Only 32 bit architectures at this time. Exiting.\n");
 		return -1;
 	}
 	if(hdr->e_ident[EI_DATA] != ELFDATA2MSB){
-		printf("Unsupported Little Endian byte ordering. Only Big Engian binary files accepted. Exiting.\n");
+		printf("Unsupported Big Endian byte ordering. Only Little Engian binary files accepted. Exiting.\n");
 		return -2;
 	}
-	if(hdr->e_machine != EM_FUSION){
-		printf("Unsupported Target. I don't know why you're trying to use a Fusion-Core ISA specific tool with a different architecture, but ok. Exiting.\n");
+	if( (byteswap_elf( hdr->e_machine ) >> 16) != EM_FUSION ){
+		printf("Unsupported Target: %08x. I don't know why you're trying to use a Fusion-Core ISA specific tool with a different architecture, but ok. Exiting.\n", byteswap_elf( hdr->e_machine ) );
 		return -3;
 	}
-	if(hdr->e_ident[EI_VERSION] != EV_CURRENT){
+	if( hdr->e_ident[EI_VERSION] != EV_CURRENT ){
 		printf("Unsupported Elf File Version. Exiting.\n");
 		return -4;
 	}
@@ -453,3 +465,18 @@ static inline void *elf_load_rel(Elf32_Ehdr *hdr){
 	return v2a.voidp;
 }
 
+static inline uint32_t byteswap_elf( uint32_t word ){
+	union u32u8 tmp_conv; /* temporary variable to convert data */
+	uint8_t tmp_data0, tmp_data1;
+	tmp_conv.u32 = word;
+	
+	tmp_data0 = tmp_conv.u8[3];
+	tmp_data1 = tmp_conv.u8[2];
+	tmp_conv.u8[2] = tmp_conv.u8[1];
+	tmp_conv.u8[3] = tmp_conv.u8[0];
+	tmp_conv.u8[0] = tmp_data0;
+	tmp_conv.u8[1] = tmp_data1;
+
+	return tmp_conv.u32;
+
+}
