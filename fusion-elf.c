@@ -52,7 +52,7 @@ void close_elf_map( addr_8_t* map, intmax_t filesize){
 	}
 	close(elf_file);
 }
-
+#if 0
 /* Allocates and initializes memory pointer variables
  * returns error values for memory space creation
  * creates memory allocation for the following variables:
@@ -105,14 +105,16 @@ int create_memspace( const char* filename ){
 	/* Make array of program headers*/
 	Elf32_Phdr* elf_phdr[elf_nprg];	
 	for( int i = 0; i < elf_nprg; i++){
-		elf_phdr[i] = elf_prginfo( elf_hdr, i );
+		elf_phdr[i] = (Elf32_Phdr *)( (uint8_t*)elf_hdr + elf_hdr->e_phoff + (i * (int)sizeof(Elf32_Phdr) ));  
+		// elf_phdr[i] = elf_prginfo( elf_hdr, i );
 		/* Getting total memory allocation size */
 		prgmem_size += elf_phdr[i]->p_memsz;
 	}
 
+	printf("Program size: %u\n", (unsigned int)prgmem_size);
 
 	/* allocate memory space of process to emulate */
-	memory_space = malloc( prgmem_size );	
+	memory_space = malloc( prgmem_size * sizeof(uint8_t));	
 	if( memory_space == NULL){
 		printf("Could not allocate memory for Fusion-Core program. Exiting\n");
 		close_elf_map(elf_tmp, filesize);
@@ -133,9 +135,40 @@ int create_memspace( const char* filename ){
 	
 	union ptr2uint ptr_tmp; /* temporary conversion between uint and pointer*/
 
+	/** Define pointers **/
+	for(int j = 1; j < elf_nsec; j++){
+		/* If offsets are equal, can use section name to figure out
+		 * what it is */
+//		if( elf_shdr[j]->sh_offset == offset ){
+			/* get pointer to name of section */
+			tmp_secname = elf_lookup_string( elf_hdr, elf_shdr[j]->sh_name );
+			/* if match, then mark the text segment */
+//			printf("Section name: %s\n", tmp_secname);
+			if( strncmp( tmp_secname, "text", 4) == 0 ){
+				printf("Found text segment\nOffset: %08x\n", (unsigned int)offset);
+			//	imem = (fusion_addr_t *)ptr_tmp.ptr; /* setting beginning of instruction memory */	
+				imem = (fusion_addr_t *) memory_space + elf_shdr[j]->sh_addr;
+
+				ptr_tmp.uint = offset + memsz;
+				//imem_end = (fusion_addr_t *)(ptr_tmp.ptr);
+				imem_end = (fusion_addr_t *)( (uint8_t *)(imem) + memsz );
+
+			/* do the same for the data segment */
+			} else if( strncmp( tmp_secname, "data", 4) == 0 ){
+				printf("Found data segment\nOffset: %08x\n", (unsigned int)elf_shdr[j]->);
+				//ptr_tmp.uint = offset;
+				dmem = (uint8_t *)(ptr_tmp.ptr); /* setting beginning of data memory */	
+
+				ptr_tmp.uint = offset + memsz;
+				dmem_end = (uint8_t *)(ptr_tmp.ptr);
+			}
+	//	}	
+	}
+
 	/* Load segments */
 	for( int i = 0; i < elf_nprg; i++){
 		/* Check if loadable segment */
+		printf("Current header:%d\n", i);
 		if( elf_phdr[i]->p_type == 1){
 			/* Get useful variables */
 			 vaddr 	= elf_phdr[i]->p_vaddr; 	/* virtual address start */
@@ -145,33 +178,8 @@ int create_memspace( const char* filename ){
 			 align 	= elf_phdr[i]->p_align;		/* Boundary to align by */
 			 offset = elf_phdr[i]->p_offset;	/* Segment offset in file */
 
-			/** Define pointers **/
-			for(int j = 0; j < elf_nsec; j++){
-				/* If offsets are equal, can use section name to figure out
-				 * what it is */
-				if( elf_shdr[j]->sh_offset == offset ){
-					/* get pointer to name of section */
-					tmp_secname = elf_lookup_string( elf_hdr, elf_shdr[j]->sh_name );
-					/* if match, then mark the text segment */
-					if( strncmp( tmp_secname, ".text", 5) == 0 ){
-						ptr_tmp.uint = offset;
-						imem = (fusion_addr_t *)ptr_tmp.ptr; /* setting beginning of instruction memory */	
-
-						ptr_tmp.uint = offset + memsz;
-						imem_end = (fusion_addr_t *)(ptr_tmp.ptr);
-
-					/* do the same for the data segment */
-					} else if( strncmp( tmp_secname, ".data", 5) == 0 ){
-						ptr_tmp.uint = offset;
-						dmem = (uint8_t *)(ptr_tmp.ptr); /* setting beginning of data memory */	
-
-						ptr_tmp.uint = offset + memsz;
-						dmem_end = (uint8_t *)(ptr_tmp.ptr);
-					}
-				}	
-			}
 			/* save entry point, no need for pointer */
-			entry = (fusion_addr_t)( byteswap_elf( elf_hdr->e_entry ) );
+			entry = (fusion_addr_t)( ( elf_hdr->e_entry ) );
 
 			/* If loading, zero the memory and load data */
 			for(int j = vaddr; j < memsz; j++){ /* NOTE: need to change for alignment */
@@ -180,7 +188,8 @@ int create_memspace( const char* filename ){
 			}	
 			for(int j = 0; j < filesz; j++){
 				/* Copy new data over */
-				*(memory_space + j + vaddr) = byteswap_elf( *(elf_tmp + j + offset) );
+///				*(memory_space + j + vaddr) = ( *((uint8_t *)elf_hdr + sizeof(Elf32_Ehdr)+ j + offset) );
+				*(memory_space + j ) = ( *((uint8_t *)elf_hdr + sizeof(Elf32_Ehdr)+ j + offset) );
 			}
 		}
 	} 	
@@ -197,7 +206,7 @@ int create_memspace( const char* filename ){
 int free_memspace (void){
 	free(memory_space);
 }
-
+#endif
 /** ELF Header Functions **/
 
 /* Checking ELF Header magic number */
@@ -235,12 +244,12 @@ int elf_check_supported_arch(Elf32_Ehdr *hdr){
 		printf("Unsupported Elf File Class. Only 32 bit architectures at this time. Exiting.\n");
 		return -1;
 	}
-	if(hdr->e_ident[EI_DATA] != ELFDATA2MSB){
+	if(hdr->e_ident[EI_DATA] != ELFDATA2LSB){
 		printf("Unsupported Big Endian byte ordering. Only Little Engian binary files accepted. Exiting.\n");
 		return -2;
 	}
-	if( (byteswap_elf( hdr->e_machine ) >> 16) != EM_FUSION ){
-		printf("Unsupported Target: %08x. I don't know why you're trying to use a Fusion-Core ISA specific tool with a different architecture, but ok. Exiting.\n", byteswap_elf( hdr->e_machine ) );
+	if( hdr->e_machine != EM_FUSION ){
+		printf("Unsupported Target: %08x. I don't know why you're trying to use a Fusion-Core ISA specific tool with a different architecture, but ok. Exiting.\n", ( hdr->e_machine ) );
 		return -3;
 	}
 	if( hdr->e_ident[EI_VERSION] != EV_CURRENT ){
@@ -254,11 +263,11 @@ int elf_check_supported_arch(Elf32_Ehdr *hdr){
 
 /* Accessing section header */
 static inline Elf32_Shdr *elf_sheader(Elf32_Ehdr *hdr){
-	return (Elf32_Shdr *)((intmax_t)hdr + hdr->e_shoff);
+	return (Elf32_Shdr *)((uint8_t *)hdr + hdr->e_shoff);
 }
 
 /* Accessing section */
-static inline Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i){
+Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i){
 	return &elf_sheader(hdr)[i]; /* 'i' refers to the index of the sections */
 }
 
@@ -267,7 +276,7 @@ static inline Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i){
 static inline char *elf_str_table(Elf32_Ehdr *hdr){
 	if(hdr->e_shstrnidx == SHN_UNDEF)
 		return NULL;
-	return (char *) (hdr + elf_section(hdr, hdr->e_shstrnidx)->sh_offset);
+	return (char *) ((uint8_t*)hdr + 1 +  elf_section(hdr, hdr->e_shstrnidx)->sh_offset);
 }
 
 /* Looking up string in string table  */
@@ -293,7 +302,7 @@ static inline Elf32_Phdr *elf_prginfo(Elf32_Ehdr *hdr, int i){
 
 
 /* Accessing symbol value */
-static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, uint index) {
+static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, unsigned int index) {
 	if(table == SHN_UNDEF || index == SHN_UNDEF)
 		return 0;
 	Elf32_Shdr *symtab = elf_section(hdr, table);
@@ -303,12 +312,12 @@ static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, uint index) {
 		exit(3);
 	}
 	/* getting symbol from offset */
-	intmax_t symaddr = (intmax_t)hdr + symtab->sh_offset;
+	uint8_t * symaddr = (uint8_t *)hdr + symtab->sh_offset;
 	Elf32_Sym *symbol = &((Elf32_Sym *)symaddr)[index];
 
 	if(symbol->st_shndx == SHN_UNDEF){
 		Elf32_Shdr *strtab = elf_section(hdr, symtab->sh_link);
-		const char *name = (const char *)hdr + strtab->sh_offset + symbol->st_name;
+		const char *name = (const char *)((uint8_t *)hdr + strtab->sh_offset + symbol->st_name);
 
 //		extern void *elf_lookup_symbol(const char *name); /* need to implement, simple implementation always returns NULL */
 //		void *target = elf_lookup_symbol(name);
@@ -333,7 +342,7 @@ static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, uint index) {
 	} else {
 		/* Internally defined symbol */
 		Elf32_Shdr *target = elf_section(hdr, symbol->st_shndx);
-		return (intmax_t)hdr + symbol->st_value + target->sh_offset;
+		return (intmax_t) *((uint8_t*)hdr + symbol->st_value + target->sh_offset);
 	}
 
 }

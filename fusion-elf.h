@@ -252,7 +252,7 @@ addr_8_t* open_elf_map( const char* filename );
 void close_elf_map( addr_8_t* map, intmax_t filesize);
 
 /* Allocates and initializes memory pointer variables */
-int create_memspace( const char *filename );
+//int create_memspace( const char *filename );
 
 /* conversion for void pointer and Elf32_Addr */
 union voidp2addr {
@@ -279,12 +279,12 @@ static inline uint32_t byteswap_elf( uint32_t word );
 int elf_check_magnum(Elf32_Ehdr *hdr);
 int elf_check_supported_arch(Elf32_Ehdr *hdr);
 static inline Elf32_Shdr *elf_sheader(Elf32_Ehdr *hdr);
-static inline Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i);
+Elf32_Shdr *elf_section(Elf32_Ehdr *hdr, int i);
 static inline Elf32_Phdr *elf_pheader(Elf32_Ehdr *hdr);
 static inline Elf32_Phdr *elf_prginfo(Elf32_Ehdr *hdr, int i);
 static inline char *elf_str_table(Elf32_Ehdr *hdr);
 static inline char *elf_lookup_string(Elf32_Ehdr *hdr, int offset);
-static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, uint index);
+static intmax_t elf_get_symval(Elf32_Ehdr *hdr, int table, unsigned int index);
 static int elf_load_stage1 (Elf32_Ehdr *hdr);
 static int elf_perform_reloc(Elf32_Ehdr *hdr, Elf32_Rela *rela, Elf32_Shdr *reltab);
 static int elf_load_stage2(Elf32_Ehdr* hdr);
